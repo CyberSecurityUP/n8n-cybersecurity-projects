@@ -26,33 +26,6 @@ All workflows are provided as **JSON** so you can import them directly into your
 
 ---
 
-## 📁 Repository structure
-
-```
-n8n-cybersecurity-projects/
-├─ workflows/
-│  ├─ enrichment/
-│  │  ├─ vt_hash_enrichment.json
-│  │  ├─ abuseipdb_ip_reputation.json
-│  │  └─ shodan_host_footprint.json
-│  ├─ alerting/
-│  │  ├─ discord_alert_on_malicious_ioc.json
-│  │  └─ slack_daily_threat_digest.json
-│  ├─ case-management/
-│  │  ├─ thehive_auto_case_from_webhook.json
-│  │  └─ jira_incident_from_alert.json
-│  └─ utilities/
-│     ├─ http_retry_backoff_subflow.json
-│     └─ json_normalize_ioc_list.json
-├─ docs/
-│  ├─ diagrams/ (optional PNG/SVG exports)
-│  └─ usage-notes.md
-├─ .env.example
-└─ README.md
-```
-
----
-
 ## ✅ Requirements
 
 * **n8n** v1.40+ (recommended)
