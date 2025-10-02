@@ -1,0 +1,268 @@
+{
+  "name": "DefectDojo Issues → CSV",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Manual Trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-620, 260]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "baseUrl",
+              "value": "https://defectdojo.seudominio.com"
+            },
+            {
+              "name": "apiToken",
+              "value": "COLOQUE_SEU_TOKEN_AQUI"
+            },
+            {
+              "name": "filters",
+              "value": "active=true&verified=true"
+            }
+          ],
+          "number": [
+            {
+              "name": "limit",
+              "value": 2000
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "Set Config",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [-420, 260]
+    },
+    {
+      "parameters": {
+        "functionCode": "const base = $json.baseUrl.replace(/\\/$/, \"\");\nconst limit = $json.limit || 1000;\nconst filters = ($json.filters || '').trim();\nconst qs = `limit=${limit}` + (filters ? `&${filters}` : '');\nconst url = `${base}/api/v2/findings/?${qs}`;\nreturn [{ json: { url, token: $json.apiToken } }];"
+      },
+      "id": "Build URL",
+      "name": "Build URL",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [-210, 260]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.url}}",
+        "options": {
+          "fullResponse": true
+        },
+        "authentication": "none",
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "Authorization",
+              "value": "Token {{$json.token}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "Fetch Findings",
+      "name": "Fetch Findings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-10, 260]
+    },
+    {
+      "parameters": {
+        "functionCode": "let body = items[0].json.body;\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch (e) { throw new Error('Resposta não é JSON válido'); }\n}\nconst results = (body && body.results) ? body.results : [];\nreturn results.map(r => ({ json: r }));"
+      },
+      "id": "Unwrap Results",
+      "name": "Unwrap Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [180, 260]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "id",
+              "value": "={{$json.id}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.title}}"
+            },
+            {
+              "name": "severity",
+              "value": "={{$json.severity}}"
+            },
+            {
+              "name": "cwe",
+              "value": "={{$json.cwe}}"
+            },
+            {
+              "name": "date",
+              "value": "={{$json.date}}"
+            },
+            {
+              "name": "product",
+              "value": "={{$json.product}}"
+            },
+            {
+              "name": "engagement",
+              "value": "={{$json.engagement}}"
+            },
+            {
+              "name": "jira_issue_key",
+              "value": "={{$json.jira_issue_key}}"
+            },
+            {
+              "name": "url",
+              "value": "={{$json.url}}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "active",
+              "value": "={{$json.active}}"
+            },
+            {
+              "name": "verified",
+              "value": "={{$json.verified}}"
+            },
+            {
+              "name": "duplicate",
+              "value": "={{$json.duplicate}}"
+            },
+            {
+              "name": "false_p",
+              "value": "={{$json.false_p}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "Pick Fields",
+      "name": "Pick Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [390, 260]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "outputFormat": "csv",
+        "options": {
+          "firstRowAsHeader": true,
+          "includeBOM": true
+        },
+        "binaryPropertyName": "data"
+      },
+      "id": "To CSV (Binary)",
+      "name": "To CSV (Binary)",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 4,
+      "position": [600, 260]
+    },
+    {
+      "parameters": {
+        "fileName": "/tmp/defectdojo_issues.csv",
+        "binaryData": true,
+        "dataPropertyName": "data"
+      },
+      "id": "Write File",
+      "name": "Write File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [810, 260]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "Build URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build URL": {
+      "main": [
+        [
+          {
+            "node": "Fetch Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Findings": {
+      "main": [
+        [
+          {
+            "node": "Unwrap Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unwrap Results": {
+      "main": [
+        [
+          {
+            "node": "Pick Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Fields": {
+      "main": [
+        [
+          {
+            "node": "To CSV (Binary)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To CSV (Binary)": {
+      "main": [
+        [
+          {
+            "node": "Write File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
