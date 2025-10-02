@@ -1,0 +1,130 @@
+{
+  "name": "VirusTotal Quick Lookup (Simple)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Manual Trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-620, 240]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "apiKey",
+              "value": "PUT_YOUR_VT_API_KEY_HERE"
+            },
+            {
+              "name": "type",
+              "value": "domain"
+            },
+            {
+              "name": "indicator",
+              "value": "example.com"
+            }
+          ]
+        }
+      },
+      "id": "Set Config",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [-420, 240]
+    },
+    {
+      "parameters": {
+        "functionCode": "const base = 'https://www.virustotal.com/api/v3';\nconst type = ($json.type || '').toLowerCase();\nconst indicator = ($json.indicator || '').trim();\nif (!indicator) throw new Error('Please set the \"indicator\" in Set Config.');\nlet path;\nswitch (type) {\n  case 'domain':\n    path = `/domains/${indicator}`;\n    break;\n  case 'ip':\n  case 'ip_address':\n    path = `/ip_addresses/${indicator}`;\n    break;\n  case 'file':\n  case 'hash':\n    path = `/files/${indicator}`; // accepts MD5/SHA1/SHA256\n    break;\n  default:\n    throw new Error('Unknown type. Use one of: domain, ip, file');\n}\nreturn [{ json: { url: base + path, apiKey: $json.apiKey } }];"
+      },
+      "id": "Build URL",
+      "name": "Build URL",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [-210, 240]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.url}}",
+        "options": {
+          "responseFormat": "json"
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "x-apikey",
+              "value": "={{$json.apiKey}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "HTTP Request",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-10, 240]
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = items[0].json || {};\nconst d = body.data || {};\nconst a = d.attributes || {};\nconst s = a.last_analysis_stats || {};\nconst out = {\n  id: d.id || null,\n  resource_type: d.type || null,\n  reputation: a.reputation ?? null,\n  harmless: s.harmless ?? 0,\n  malicious: s.malicious ?? 0,\n  suspicious: s.suspicious ?? 0,\n  undetected: s.undetected ?? 0,\n  timeout: s.timeout ?? 0,\n  last_analysis_date: a.last_analysis_date || a.last_modification_date || null\n};\n// Optional fields if present\nif (a.country) out.country = a.country;\nif (a.as_owner) out.as_owner = a.as_owner;\nif (a.md5) out.md5 = a.md5;\nif (a.sha1) out.sha1 = a.sha1;\nif (a.sha256) out.sha256 = a.sha256;\nif (a.tags) out.tags = a.tags;\nreturn [{ json: out }];"
+      },
+      "id": "Extract Summary",
+      "name": "Extract Summary",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [190, 240]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "Build URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build URL": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Extract Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
