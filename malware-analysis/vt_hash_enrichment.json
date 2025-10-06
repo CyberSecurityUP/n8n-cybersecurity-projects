@@ -1,0 +1,121 @@
+{
+  "name": "VT Hash Enrichment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vt/hash",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7973a0e3-b198-47c7-887b-8a1639b1fc07",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -420,
+        40
+      ],
+      "webhookId": "60dd9d95-fb6b-4359-a4f5-fd09b1b9c084"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.virustotal.com/api/v3/files/{{$json.body.hash}}",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-apikey",
+              "value": "={{$env.VT_API_KEY}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "45dd7526-1e8b-40d4-a5da-55f5c1f76fd7",
+      "name": "VirusTotal Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -120,
+        40
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst attrs = data.data?.attributes || {};\nconst stats = attrs.last_analysis_stats || {};\nconst malicious = stats.malicious || 0;\nconst suspicious = stats.suspicious || 0;\nconst undetected = stats.undetected || 0;\nconst harmless = stats.harmless || 0;\nconst total = malicious + suspicious + undetected + harmless;\nconst verdict = malicious > 0 ? 'malicious' : (suspicious > 0 ? 'suspicious' : (harmless > 0 ? 'harmless' : 'unknown'));\nconst hash = $json.body?.hash;\nreturn [{\n  json: {\n    input: { hash },\n    vt: {\n      verdict,\n      detections: { malicious, suspicious, undetected, harmless, total },\n      link: `https://www.virustotal.com/gui/file/${hash}`,\n      names: attrs.meaningful_name || attrs.names || []\n    }\n  }\n}];\n"
+      },
+      "id": "e1da045e-def8-47a2-a340-f40ad62a75cf",
+      "name": "Summarize VT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "ee7b7d51-51fd-429c-aa40-ddbd6802a5be",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        420,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "VirusTotal Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VirusTotal Lookup": {
+      "main": [
+        [
+          {
+            "node": "Summarize VT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize VT": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "meta": {}
+}
