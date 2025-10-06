@@ -1,0 +1,121 @@
+{
+  "name": "Slack Daily Threat Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "hour": 8,
+              "minute": 30
+            }
+          ]
+        }
+      },
+      "id": "89ef1cc1-4316-4411-9e5d-e6b7d78906a6",
+      "name": "Daily at 08:30",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.THREAT_FEED_RSS || 'https://blog.talosintelligence.com/feed/'}}",
+        "options": {}
+      },
+      "id": "986370f8-0e87-4bdd-b163-07f55985457d",
+      "name": "RSS Read",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expect RSS Read items, take top 5\nconst items = $input.all().map(i => i.json).slice(0, 5);\nconst blocks = [];\nblocks.push({ type: \"header\", text: { type: \"plain_text\", text: \"Daily Threat Digest\" } });\nfor (const it of items) {\n  const title = it.title || it.headline || \"Untitled\";\n  const url = it.link || it.url || \"#\";\n  const date = it.isoDate || it.pubDate || \"\";\n  blocks.push({ type: \"section\", text: { type: \"mrkdwn\", text: `*<${url}|${title}>*\\n${date}` } });\n  blocks.push({ type: \"divider\" });\n}\nreturn [{ json: { blocks } }];\n"
+      },
+      "id": "18c58a3b-e05f-4cab-9554-427f6fc1cb83",
+      "name": "Format Slack Blocks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { blocks: $json.blocks } }}"
+      },
+      "id": "e81e3d81-aced-4c9b-bf9c-0f7cea030d04",
+      "name": "Post to Slack (Incoming Webhook)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        140,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    }
+  ],
+  "connections": {
+    "Daily at 08:30": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Format Slack Blocks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slack Blocks": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack (Incoming Webhook)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "meta": {}
+}
