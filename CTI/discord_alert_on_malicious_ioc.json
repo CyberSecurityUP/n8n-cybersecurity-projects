@@ -1,0 +1,113 @@
+{
+  "name": "Discord Alert on Malicious IOC",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "alert/discord/ioc",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "68c77f7a-00eb-44a5-bd7b-0d1e33d70438",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -660,
+        0
+      ],
+      "webhookId": "0a1fff15-ca34-48ee-813d-1b1e23a6e76f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $json.body || {};\nconst iocType = (b.type || '').toLowerCase();\nconst value = b.value || b.ioc || b.hash || b.ip || b.url || 'unknown';\nlet verdict = (b.verdict || b.score || 'unknown').toString();\nif (!isNaN(Number(verdict))) {\n  const s = Number(verdict);\n  verdict = s >= 75 ? 'malicious' : (s >= 25 ? 'suspicious' : 'clean');\n}\nconst color = verdict === 'malicious' ? 16711680 : (verdict === 'suspicious' ? 16753920 : 3066993);\nconst link = iocType === 'ip' ? `https://www.abuseipdb.com/check/${value}`\n          : (iocType === 'hash' ? `https://www.virustotal.com/gui/file/${value}`\n          : (iocType === 'domain' ? `https://www.virustotal.com/gui/domain/${value}`\n          : (iocType === 'url' ? `https://www.virustotal.com/gui/url/${value}` : null)));\nconst embed = {\n  title: `IOC Alert: ${value}`,\n  description: `Type: **${iocType || 'unknown'}**\\nVerdict: **${verdict}**` + (link ? `\\n[More details](${link})` : ''),\n  color,\n  timestamp: new Date().toISOString()\n};\nreturn [{ json: { embed } }];\n"
+      },
+      "id": "3d9eaa03-b45e-4681-96fb-b3bad52d3792",
+      "name": "Build Discord Embed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "options": {},
+        "embeds": {
+          "values": [
+            {
+              "inputMethod": "json",
+              "json": "={{ $json.embed }}"
+            }
+          ]
+        },
+        "webhookUri": "={{$env.DISCORD_WEBHOOK_URL}}"
+      },
+      "id": "52feab7f-af80-4972-bed9-a11640bb6304",
+      "name": "Discord (Webhook)",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: \"sent\" } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "c74c128b-265d-4e5d-af4c-3227eb80acfd",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        300,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Discord Embed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Discord Embed": {
+      "main": [
+        [
+          {
+            "node": "Discord (Webhook)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "meta": {}
+}

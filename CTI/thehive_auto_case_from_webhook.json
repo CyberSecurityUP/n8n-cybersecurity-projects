@@ -1,0 +1,195 @@
+{
+  "name": "TheHive Auto Case from Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "thehive/case",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "551ee3a1-1240-45d3-975a-cc4c96ac6c71",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -800,
+        0
+      ],
+      "webhookId": "a58dade7-2325-44f1-8b99-5c45d9f77b32"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $json.body || {};\nconst title = b.title || `Incoming Alert: ${b.source || 'Unknown'}`;\nconst tlp = b.tlp ?? 2;\nconst severity = b.severity ?? 2;\nconst description = b.description || b.summary || '';\nconst tags = b.tags || [];\nconst observables = Array.isArray(b.observables) ? b.observables : (Array.isArray(b.iocs) ? b.iocs : []);\n// TheHive 5 case create body (simplified)\nconst caseBody = {\n  title, tlp, severity, tags, description\n};\nconst obs = observables.map(o => {\n  const v = typeof o === 'string' ? o : (o.value || o.data || o.ioc || '');\n  const t = (typeof o === 'object' && o.dataType) ? o.dataType : (\n    (v.includes('@') && 'mail') ||\n    (v.match(/^\\d+\\.\\d+\\.\\d+\\.\\d+$/) && 'ip') ||\n    (v.startsWith('http') && 'url') ||\n    'other'\n  );\n  return { data: v, dataType: t, tlp};\n});\nreturn [{ json: { caseBody, observables: obs } }];\n"
+      },
+      "id": "b02cbe09-595f-4264-aeb6-a91b2baef439",
+      "name": "Prepare TheHive Case Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.THEHIVE_BASE_URL || 'https://thehive.example' }}/api/v1/case",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.THEHIVE_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.caseBody }}"
+      },
+      "id": "3b3cdfa8-b0b1-41a5-b223-c99276620805",
+      "name": "TheHive Create Case",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -140,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nreturn [{ json: { id: resp.id || resp._id || resp.caseId || resp.number || resp.data?.id } }];\n"
+      },
+      "id": "4960e357-c409-4e99-bbc4-a7d85a92f265",
+      "name": "Extract Case ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.THEHIVE_BASE_URL || 'https://thehive.example') + '/api/v1/case/' + $json.id + '/artifact/bulk' }}",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.THEHIVE_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { artifacts: $node['Prepare TheHive Case Body'].json.observables } }}"
+      },
+      "id": "e4169b58-6f13-4042-9037-5732e0cac3e0",
+      "name": "TheHive Add Observables",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: \"created\", case: $json } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "ae4145c3-8701-4f18-9a73-84a6947cf851",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        500,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare TheHive Case Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare TheHive Case Body": {
+      "main": [
+        [
+          {
+            "node": "TheHive Create Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TheHive Create Case": {
+      "main": [
+        [
+          {
+            "node": "Extract Case ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Case ID": {
+      "main": [
+        [
+          {
+            "node": "TheHive Add Observables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TheHive Add Observables": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "meta": {}
+}
