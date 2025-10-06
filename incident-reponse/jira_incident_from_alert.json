@@ -1,0 +1,125 @@
+{
+  "name": "Jira Incident from Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jira/incident",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "27cd598b-398b-4e43-9ce3-3620658a542e",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -680,
+        0
+      ],
+      "webhookId": "1be9acfe-f552-4c14-b3fd-c8e132750ef8"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $json.body || {};\nconst projectKey = b.projectKey || 'SEC';\nconst issueTypeName = b.issueType || 'Incident';\nconst summary = b.summary || `Incident: ${b.source || 'Alert'}`;\nconst description = b.description || '';\nconst labels = b.labels || ['security', 'automation'];\n// Build Jira Cloud v3 create issue body using names (Jira will map names to IDs if allowed)\nconst issue = {\n  fields: {\n    project: { key: projectKey },\n    issuetype: { name: issueTypeName },\n    summary,\n    description,\n    labels\n  }\n};\n// Optional priority\nif (b.priority) issue.fields.priority = { name: b.priority };\nreturn [{ json: { issue } }];\n"
+      },
+      "id": "6954ae54-8133-47cf-b191-65f8c985427f",
+      "name": "Build Jira Issue Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.JIRA_BASE_URL || 'https://your-domain.atlassian.net') + '/rest/api/3/issue' }}",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Basic {{$env.JIRA_BASIC_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.issue }}"
+      },
+      "id": "30cc8fd4-f6bf-4055-9e31-615462ec6d3b",
+      "name": "Jira Create Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -60,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: \"created\", key: $json.key, id: $json.id, self: $json.self } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "47f06491-d011-40ae-b473-1013e00a9562",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Jira Issue Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Jira Issue Body": {
+      "main": [
+        [
+          {
+            "node": "Jira Create Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira Create Issue": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "meta": {}
+}

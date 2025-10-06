@@ -1,0 +1,164 @@
+{
+  "name": "HTTP Retry Backoff Subflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e1524482-4674-4319-ac2d-390e04168717",
+      "name": "Execute Sub-workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $json;\nreturn [{\n  json: {\n    url: b.url,\n    method: b.method || 'GET',\n    body: b.body || null,\n    headers: b.headers || {},\n    max_tries: Number(b.max_tries || 5),\n    base_delay_ms: Number(b.base_delay_ms || 1000),\n    jitter: Number(b.jitter ?? 0.25)\n  }\n}];\n"
+      },
+      "id": "d878bb22-76a2-4796-b43b-b6e91448f505",
+      "name": "Set Defaults",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "delay_ms",
+              "value": "={{ Math.floor($json.base_delay_ms * (1 + ($json.jitter || 0.25) * Math.random())) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cd5cf651-496e-4904-b5ff-d7a82dc9f80b",
+      "name": "Compute Jitter Delay",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -60,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const headers = $json.headers || {};\nconst arr = Object.entries(headers).map(([name, value]) => ({name, value: String(value)}));\nreturn [{ json: { headerParameters: { parameters: arr }, url: $json.url, method: $json.method, body: $json.body, max_tries: $json.max_tries, base_delay_ms: $json.base_delay_ms, delay_ms: $json.delay_ms } }];\n"
+      },
+      "id": "407da9a8-0d82-4c33-8695-07cd15f6add7",
+      "name": "Map Headers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "={{$json.method}}",
+        "url": "={{$json.url}}",
+        "options": {},
+        "sendHeaders": true,
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{$json.body}}",
+        "headerParameters": "={{$json.headerParameters}}"
+      },
+      "id": "d2c65e05-fcf5-4386-bba2-cd71ed604e4e",
+      "name": "HTTP Call (with retry)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": "={{$json.max_tries}}",
+      "waitBetweenTries": "={{$json.delay_ms || $json.base_delay_ms}}"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a3a6d8a7-d690-4bdb-beb1-47b30a0e8861",
+      "name": "Return Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        500,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Execute Sub-workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Defaults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Defaults": {
+      "main": [
+        [
+          {
+            "node": "Compute Jitter Delay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Jitter Delay": {
+      "main": [
+        [
+          {
+            "node": "Map Headers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Headers": {
+      "main": [
+        [
+          {
+            "node": "HTTP Call (with retry)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Call (with retry)": {
+      "main": [
+        [
+          {
+            "node": "Return Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "meta": {}
+}
