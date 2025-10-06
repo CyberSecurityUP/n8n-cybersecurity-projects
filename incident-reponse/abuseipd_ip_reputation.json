@@ -1,0 +1,138 @@
+{
+  "name": "AbuseIPDB IP Reputation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "abuseipdb/check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "744684df-9c38-4ab2-965a-335b0141f79e",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -460,
+        0
+      ],
+      "webhookId": "c408f86a-71c4-445a-881a-b8bb4511e765"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.abuseipdb.com/api/v2/check",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Key",
+              "value": "={{$env.ABUSEIPDB_API_KEY}}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ipAddress",
+              "value": "={{$json.body.ip}}"
+            },
+            {
+              "name": "maxAgeInDays",
+              "value": "90"
+            },
+            {
+              "name": "verbose",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "id": "fdce9155-79f1-4a3d-b5aa-af30c8a3ac55",
+      "name": "AbuseIPDB Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -120,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json.data || {};\nconst score = d.abuseConfidenceScore ?? d.confidenceScore ?? 0;\nconst totalReports = d.totalReports || 0;\nconst lastReportedAt = d.lastReportedAt || null;\nconst isp = d.isp || null;\nconst country = d.countryCode || null;\nconst ip = $json.body?.ip;\nconst verdict = score >= 75 ? 'malicious' : (score >= 25 ? 'suspicious' : 'clean');\nreturn [{\n  json: {\n    input: { ip },\n    abuseipdb: {\n      verdict,\n      confidence_score: score,\n      total_reports: totalReports,\n      last_reported_at: lastReportedAt,\n      isp,\n      country,\n      link: `https://www.abuseipdb.com/check/${ip}`\n    }\n  }\n}];\n"
+      },
+      "id": "721fb819-f511-42ff-9de0-26b170488913",
+      "name": "Summarize AbuseIPDB",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "68909d3e-07d3-4043-b440-c0fc3f8009bf",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        440,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AbuseIPDB Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AbuseIPDB Check": {
+      "main": [
+        [
+          {
+            "node": "Summarize AbuseIPDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize AbuseIPDB": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "meta": {}
+}
